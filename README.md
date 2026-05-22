@@ -33,9 +33,7 @@ I need to use OpenCode on my local Windows host to control that VM — automatin
 - **OpenCode** (latest version)
 - **SSH daemon** on the remote machine (the *only* remote requirement)
 
-> **Note**: The plugin provides both a server component (tools) and a TUI component (remote indicator). Both are loaded automatically by OpenCode.
->
-> This plugin uses the pure-Node.js `ssh2` library internally. You **do not** need to install `ssh`, `sshpass`, or `rsync` locally.
+> **Note**:  This plugin uses the pure-Node.js `ssh2` library internally. You **do not** need to install `ssh`, `sshpass`, or `rsync` locally.
 
 ---
 
@@ -87,52 +85,51 @@ Use `npm run dev` for watch-mode builds during development.
 
 Remote mode is activated **exclusively via environment variables**. OpenCode's CLI does not recognize `--remote*` flags, and plugin options in `opencode.json` are unreliable due to internal caching.
 
-Create a launcher script that sets the required environment variables and then calls `opencode`:
+### Launcher scripts
 
-### Windows CMD (`.bat`)
+The `launchers/` directory contains ready-made launcher scripts for all major platforms. **We strongly recommend using them** because they solve a session persistence problem: OpenCode binds sessions to the current working directory, so if you launch it from different local folders, your remote sessions appear to "disappear." The launchers automatically derive a stable local session directory from your remote target, ensuring sessions persist no matter where you invoke the script from.
 
-```bat
-@echo off
-chcp 65001 >nul
-set "REMOTE_SSH=ssh -i C:\Users\me\.ssh\id_rsa user@host"
-set "REMOTE_WORKDIR=/home/project"
-set "REMOTE_PASSWORD=your-password"
-set "REMOTE_SUDO_PASSWORD=your-sudo-password"
-opencode %*
-```
+1. Copy the appropriate launcher for your platform to a location in your `$PATH` (or keep it anywhere convenient):
 
-### Windows PowerShell (`.ps1`)
+   ```bash
+   # Linux / macOS
+   cp launchers/remote-opencode.sh ~/bin/remote-opencode
+   chmod +x ~/bin/remote-opencode
 
-```powershell
-$env:REMOTE_SSH = "ssh -i C:\Users\me\.ssh\id_rsa user@host"
-$env:REMOTE_WORKDIR = "/home/project"
-$env:REMOTE_PASSWORD = "your-password"
-$env:REMOTE_SUDO_PASSWORD = "your-sudo-password"
-opencode @args
-```
+   # Windows PowerShell
+   Copy-Item launchers\remote-opencode.ps1 $env:USERPROFILE\bin\remote-opencode.ps1
 
-### Linux / macOS Bash (`.sh`)
+   # Windows CMD
+   copy launchers\remote-opencode.bat %USERPROFILE%\bin\remote-opencode.bat
+   ```
 
-```bash
-#!/bin/bash
-export REMOTE_SSH="ssh -i ~/.ssh/id_rsa user@host"
-export REMOTE_WORKDIR="/home/project"
-export REMOTE_PASSWORD="your-password"
-export REMOTE_SUDO_PASSWORD="your-sudo-password"
-opencode "$@"
-```
+2. Edit the **"User Configuration"** block inside the launcher with your `REMOTE_SSH`, `REMOTE_WORKDIR`, and optional credentials.
 
-Save the script, make it executable (on Unix), and run it instead of calling `opencode` directly.
+3. Run the launcher instead of `opencode` directly:
+
+   ```bash
+   remote-opencode
+   ```
+
+The launcher will:
+- Automatically create and `cd` into a stable local session directory (e.g. `~/.opencode/remote-sessions/host_home_project/`)
+- Export the required environment variables
+- Launch OpenCode from that stable directory
+
+You can also uncomment the optional **SSH connection pool tuning** variables in the launcher if you need to adjust concurrency for legacy SSH servers.
 
 ### Configuration options
 
-| Environment Variable     | Description                                                             | Default                  |
-| :----------------------- | :---------------------------------------------------------------------- | :----------------------- |
-| `REMOTE_SSH`           | Full SSH connection string (exactly as you would type in your terminal) | *(required)*           |
-| `REMOTE_WORKDIR`       | Remote working directory (absolute path)                                | *(required)*           |
-| `REMOTE_MIRROR`        | Local mirror root directory                                             | `~/.opencode/mirrors/` |
-| `REMOTE_PASSWORD`      | SSH login password                                                      | *(optional)*           |
-| `REMOTE_SUDO_PASSWORD` | Sudo password for remote commands                                       | *(optional)*           |
+| Environment Variable       | Description                                                             | Default                  |
+| :------------------------- | :---------------------------------------------------------------------- | :----------------------- |
+| `REMOTE_SSH`             | Full SSH connection string (exactly as you would type in your terminal) | *(required)*           |
+| `REMOTE_WORKDIR`         | Remote working directory (absolute path)                                | *(required)*           |
+| `REMOTE_MIRROR`          | Local mirror root directory                                             | `~/.opencode/mirrors/` |
+| `REMOTE_PASSWORD`        | SSH login password                                                      | *(optional)*           |
+| `REMOTE_SUDO_PASSWORD`   | Sudo password for remote commands                                       | *(optional)*           |
+| `REMOTE_POOL_COMMAND_SIZE` | SSH exec connection pool size (`bash`/`glob`/`grep`)                  | `3`                    |
+| `REMOTE_POOL_FILE_SIZE`  | SFTP connection pool size (`read`/`write`/`edit`/`patch`)             | `2`                    |
+| `REMOTE_POOL_STAGGER_MS` | Delay between sequential SSH handshakes (ms) for legacy servers       | `0`                    |
 
 If `REMOTE_SSH` is not set, the plugin stays dormant and OpenCode runs normally in local mode.
 

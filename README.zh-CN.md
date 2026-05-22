@@ -33,9 +33,7 @@
 - **OpenCode**（最新版本）
 - 远程机器上运行的 **SSH 服务**（**唯一的远程依赖**）
 
-> **注意**：本插件同时提供服务器组件（tools）和 TUI 组件（远程状态指示器）。OpenCode 会自动加载两者。
->
-> 本插件内部使用纯 Node.js 的 `ssh2` 库。你**不需要**在本地安装 `ssh`、`sshpass` 或 `rsync`。
+> **注意**：本插件内部使用纯 Node.js 的 `ssh2` 库。你**不需要**在本地安装 `ssh`、`sshpass` 或 `rsync`。
 
 ---
 
@@ -87,52 +85,51 @@ Copy-Item -Recurse -Force . $env:USERPROFILE\.config\opencode\plugins\remote-cod
 
 远程模式**仅通过环境变量激活**。OpenCode CLI 不识别 `--remote*` 参数，且 `opencode.json` 中的 plugin options 会因内部缓存而不可靠。
 
-请创建一个启动脚本，设置所需的环境变量后再调用 `opencode`：
+### 启动脚本
 
-### Windows CMD（`.bat`）
+`launchers/` 目录下包含为各主流平台预制的启动脚本。**强烈建议使用它们**，因为它们解决了一个会话持久化问题：OpenCode 的会话与当前工作目录绑定，如果你从不同的本地文件夹启动，远程会话就会"消失"。这些启动脚本会根据远程目标自动派生一个稳定的本地会话目录，确保无论你从何处调用，会话始终持久。
 
-```bat
-@echo off
-chcp 65001 >nul
-set "REMOTE_SSH=ssh -i C:\Users\me\.ssh\id_rsa user@host"
-set "REMOTE_WORKDIR=/home/project"
-set "REMOTE_PASSWORD=你的密码"
-set "REMOTE_SUDO_PASSWORD=你的sudo密码"
-opencode %*
-```
+1. 根据你的平台复制对应的启动脚本到 `$PATH` 中的某个位置（或放在任何方便的位置）：
 
-### Windows PowerShell（`.ps1`）
+   ```bash
+   # Linux / macOS
+   cp launchers/remote-opencode.sh ~/bin/remote-opencode
+   chmod +x ~/bin/remote-opencode
 
-```powershell
-$env:REMOTE_SSH = "ssh -i C:\Users\me\.ssh\id_rsa user@host"
-$env:REMOTE_WORKDIR = "/home/project"
-$env:REMOTE_PASSWORD = "你的密码"
-$env:REMOTE_SUDO_PASSWORD = "你的sudo密码"
-opencode @args
-```
+   # Windows PowerShell
+   Copy-Item launchers\remote-opencode.ps1 $env:USERPROFILE\bin\remote-opencode.ps1
 
-### Linux / macOS Bash（`.sh`）
+   # Windows CMD
+   copy launchers\remote-opencode.bat %USERPROFILE%\bin\remote-opencode.bat
+   ```
 
-```bash
-#!/bin/bash
-export REMOTE_SSH="ssh -i ~/.ssh/id_rsa user@host"
-export REMOTE_WORKDIR="/home/project"
-export REMOTE_PASSWORD="你的密码"
-export REMOTE_SUDO_PASSWORD="你的sudo密码"
-opencode "$@"
-```
+2. 编辑脚本中的 **"User Configuration"** 配置块，填入你的 `REMOTE_SSH`、`REMOTE_WORKDIR` 以及可选的认证信息。
 
-保存脚本，在 Unix 系统上赋予执行权限，然后用它来启动 OpenCode。
+3. 用启动脚本代替 `opencode` 直接启动：
+
+   ```bash
+   remote-opencode
+   ```
+
+启动脚本会自动完成以下操作：
+- 创建并进入稳定的本地会话目录（例如 `~/.opencode/remote-sessions/host_home_project/`）
+- 导出所需的环境变量
+- 从该稳定目录启动 OpenCode
+
+如果你的远程是 legacy SSH 服务器（例如 OpenSSH 5.3），还可以取消脚本中可选的 **SSH 连接池调优** 变量注释，以调整并发连接数。
 
 ### 配置选项
 
-| 环境变量                 | 说明                                          | 默认值                   |
-| :----------------------- | :-------------------------------------------- | :----------------------- |
-| `REMOTE_SSH`           | 完整的 SSH 连接命令（与终端输入格式完全一致） | *(必填)*               |
-| `REMOTE_WORKDIR`       | 远程工作目录（绝对路径）                      | *(必填)*               |
-| `REMOTE_MIRROR`        | 本地镜像根目录                                | `~/.opencode/mirrors/` |
-| `REMOTE_PASSWORD`      | SSH 登录密码                                  | *(可选)*               |
-| `REMOTE_SUDO_PASSWORD` | 远程命令的 sudo 密码                          | *(可选)*               |
+| 环境变量                   | 说明                                          | 默认值                   |
+| :------------------------- | :-------------------------------------------- | :----------------------- |
+| `REMOTE_SSH`             | 完整的 SSH 连接命令（与终端输入格式完全一致） | *(必填)*               |
+| `REMOTE_WORKDIR`         | 远程工作目录（绝对路径）                      | *(必填)*               |
+| `REMOTE_MIRROR`          | 本地镜像根目录                                | `~/.opencode/mirrors/` |
+| `REMOTE_PASSWORD`        | SSH 登录密码                                  | *(可选)*               |
+| `REMOTE_SUDO_PASSWORD`   | 远程命令的 sudo 密码                          | *(可选)*               |
+| `REMOTE_POOL_COMMAND_SIZE` | SSH exec 连接池大小（`bash`/`glob`/`grep`） | `3`                    |
+| `REMOTE_POOL_FILE_SIZE`  | SFTP 连接池大小（`read`/`write`/`edit`/`patch`） | `2`                 |
+| `REMOTE_POOL_STAGGER_MS` | 顺序 SSH 握手之间的延迟（毫秒），用于兼容旧服务器 | `0`                 |
 
 若未设置 `REMOTE_SSH`，插件保持休眠，OpenCode 完全按本地模式运行。
 
